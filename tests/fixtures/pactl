@@ -12,6 +12,9 @@ case "$*" in
       'map(if .name == $c then .active_profile = $p else . end)' \
       "$FAKE_DIR/cards.json" > "$FAKE_DIR/cards.tmp"
     mv "$FAKE_DIR/cards.tmp" "$FAKE_DIR/cards.json" ;;
-  set-default-source\ *|set-default-sink\ *) ;;
+  get-default-source) cat "$FAKE_DIR/default_source" ;;
+  get-default-sink) cat "$FAKE_DIR/default_sink" ;;
+  set-default-source\ *) echo "$2" > "$FAKE_DIR/default_source" ;;
+  set-default-sink\ *) echo "$2" > "$FAKE_DIR/default_sink" ;;
   *) echo "fake pactl: unsupported: $*" >&2; exit 1 ;;
 esac

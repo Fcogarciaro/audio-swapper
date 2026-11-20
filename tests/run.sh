@@ -13,6 +13,8 @@ setup() { # <cards fixture>
   cp "$FIX/sources.json" "$FAKE_DIR/sources.json"
   cp "$FIX/sinks.json" "$FAKE_DIR/sinks.json"
   : > "$FAKE_DIR/calls.log"
+  echo alsa_input.usb-mic > "$FAKE_DIR/default_source"
+  echo alsa_output.pci > "$FAKE_DIR/default_sink"
   export PATH="$FIX:$PATH"
   export AUDIO_SWAPPER_NO_NOTIFY=1
 }
@@ -41,6 +43,17 @@ t_status_music() {
   check "music: card" "$CARD" "$(field "$out" card)"
   check "music: hasCall" true "$(field "$out" hasCall)"
   check "music: hasMusic" true "$(field "$out" hasMusic)"
+}
+t_default_devices() {
+  setup cards_music.json
+  out=$("$BIN" status)
+  check "defaults: source description" "USB Microphone" "$(field "$out" defaultSource)"
+  check "defaults: sink description" "Built-in Audio Speakers" "$(field "$out" defaultSink)"
+  out=$("$BIN" call)
+  check "defaults after call: source is headset mic" "realme Buds Air8" "$(field "$out" defaultSource)"
+  check "defaults after call: sink is headset" "realme Buds Air8" "$(field "$out" defaultSink)"
+  setup cards_no_headset.json
+  check "defaults without headset still reported" "USB Microphone" "$(field "$("$BIN" status)" defaultSource)"
 }
 t_status_call() {
   setup cards_call.json
@@ -73,6 +86,6 @@ t_unavailable_skipped() {
   check "msbc not selected" no "$(log_has "set-card-profile $CARD headset-head-unit-msbc")"
 }
 
-for t in t_no_headset t_status_music t_status_call t_toggle_to_call t_toggle_to_music t_a2dp_fallback t_unavailable_skipped; do "$t"; done
+for t in t_default_devices t_no_headset t_status_music t_status_call t_toggle_to_call t_toggle_to_music t_a2dp_fallback t_unavailable_skipped; do "$t"; done
 echo "passed=$pass failed=$fail"
 [[ $fail -eq 0 ]]

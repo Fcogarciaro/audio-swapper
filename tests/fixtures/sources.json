@@ -1,1 +1,1 @@
-[{"index":1,"name":"alsa_output.pci.monitor"},{"index":2,"name":"bluez_input.AA_BB_CC_DD_EE_FF.0"}]
+[{"index":0,"name":"alsa_input.usb-mic","description":"USB Microphone"},{"index":1,"name":"alsa_output.pci.monitor","description":"Monitor of Built-in Audio"},{"index":2,"name":"bluez_input.AA_BB_CC_DD_EE_FF.0","description":"realme Buds Air8"}]

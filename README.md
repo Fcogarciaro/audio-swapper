@@ -23,12 +23,14 @@ git clone https://github.com/Fcogarciaro/audio-swapper ~/.config/omarchy/plugins
 
 Then add the "Audio Swapper" widget to the bar with `omarchy bar` (or by listing `fcogarciaro.audio-swapper` in your `shell.json` bar section).
 
-Widget: left click toggles, middle click refreshes. The icon shows call mode, music mode, or a dimmed icon when no headset is connected.
+Widget: left click opens the panel, middle click refreshes. The icon shows call mode, music mode, or a dimmed icon when no headset is connected.
+
+The panel shows the headset name and state, two mode cards (Music and Call; the active one is highlighted, unavailable ones are dimmed), and the current default microphone so you can confirm dictation apps get the headset mic. Left/Right (or h/l) moves between cards, Enter or Space switches, Esc closes. If a switch fails, the error appears inline. With no headset connected, the cards are disabled and a button opens the Omarchy Bluetooth panel.
 
 ## CLI
 
 ```bash
-audio-swapper status   # one-line JSON
+audio-swapper status   # one-line JSON (mode, availability, default mic/sink)
 audio-swapper call     # HFP profile + default mic/sink
 audio-swapper music    # best A2DP profile + default sink
 audio-swapper toggle   # call -> music, anything else -> call
@@ -40,7 +42,7 @@ Bind a key in `~/.config/hypr/bindings.lua`:
 o.bind("SUPER + ALT + M", "Toggle headset mic mode", "~/.config/omarchy/plugins/fcogarciaro.audio-swapper/audio-swapper toggle")
 ```
 
-The widget also answers IPC: `qs ipc call fcogarciaro.audio-swapper toggle` (also `call`, `music`, `refresh`).
+The widget also answers IPC: `qs ipc call fcogarciaro.audio-swapper toggle` (also `call`, `music`, `open`, `close`, `refresh`; `toggle` switches directly without opening the panel).
 
 Profile choice: call prefers `headset-head-unit-msbc`, then `headset-head-unit`, then any head-unit/HFP/HSP profile. Music prefers `a2dp-sink`, else the `a2dp-sink*` profile with the highest priority. Unavailable profiles are skipped.
 

@@ -44,10 +44,22 @@ pick_music() { # <card json> -> profile name or empty
   grep -E '^a2dp-sink' <<<"$prof" | sort -t$'\t' -k2,2nr | head -n1 | cut -f1 || true
 }
 
+# Human-readable description of the current default node.
+default_desc() { # <sources|sinks> <get-default-source|get-default-sink>
+  local name; name=$(pactl "$2" 2>/dev/null || true)
+  [[ -n "$name" ]] || return 0
+  pactl -f json list "$1" 2>/dev/null | jq -r --arg n "$name" \
+    '([ .[] | select(.name == $n) ] | .[0].description) // $n' || true
+}
+
 status_json() {
+  local dsrc dsink
+  dsrc=$(default_desc sources get-default-source)
+  dsink=$(default_desc sinks get-default-sink)
   local card; card=$(pick_card)
   if [[ -z "$card" ]]; then
-    echo '{"connected":false,"card":"","name":"","mode":"none","hasCall":false,"hasMusic":false}'
+    jq -nc --arg ds "$dsrc" --arg dk "$dsink" '{connected:false, card:"", name:"", mode:"none",
+      hasCall:false, hasMusic:false, defaultSource:$ds, defaultSink:$dk}'
     return
   fi
   local active mode
@@ -56,10 +68,11 @@ status_json() {
   local hasCall=false hasMusic=false
   [[ -n "$(pick_call "$card")" ]] && hasCall=true
   [[ -n "$(pick_music "$card")" ]] && hasMusic=true
-  jq -nc --argjson c "$card" --arg mode "$mode" --argjson hc "$hasCall" --argjson hm "$hasMusic" '
+  jq -nc --argjson c "$card" --arg mode "$mode" --argjson hc "$hasCall" --argjson hm "$hasMusic" \
+    --arg ds "$dsrc" --arg dk "$dsink" '
     {connected:true, card:$c.name,
      name:($c.properties["device.description"] // $c.name),
-     mode:$mode, hasCall:$hc, hasMusic:$hm}'
+     mode:$mode, hasCall:$hc, hasMusic:$hm, defaultSource:$ds, defaultSink:$dk}'
 }
 
 # First node name of <kind> (sources|sinks) belonging to the card address.
