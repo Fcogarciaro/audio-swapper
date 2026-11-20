@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# audio-swapper: switch a Bluetooth headset between music (A2DP) and call (HFP/HSP) mode.
+set -euo pipefail
+
+die() { echo "audio-swapper: $*" >&2; exit 1; }
+
+cards_json() { pactl -f json list cards; }
+
+# Prints the first bluez card as JSON, preferring one with an active profile other than "off".
+pick_card() {
+  cards_json | jq -c '
+    [ .[] | select(.name | startswith("bluez_card.")) ] as $b
+    | (([ $b[] | select(.active_profile != "off") ] + $b) | .[0]) // empty'
+}
+
+# Classify an active profile name.
+mode_of() {
+  case "$1" in
+    *head-unit*|*hfp*|*hsp*|*handsfree*) echo call ;;
+    a2dp-sink*) echo music ;;
+    *) echo other ;;
+  esac
+}
+
+# Profile names usable (available != no/false), one per line with priority.
+usable_profiles() { # <card json>
+  jq -r '.profiles | to_entries[]
+    | select((.value.available | tostring) as $a | $a != "no" and $a != "false")
+    | "\(.key)\t\(.value.priority // 0)"' <<<"$1"
+}
+
+pick_call() { # <card json> -> profile name or empty
+  local list; list=$(usable_profiles "$1" | cut -f1)
+  local p
+  for p in headset-head-unit-msbc headset-head-unit; do
+    if grep -qxF "$p" <<<"$list"; then echo "$p"; return; fi
+  done
+  grep -E 'head-unit|hfp|hsp' <<<"$list" | head -n1 || true
+}
+
+pick_music() { # <card json> -> profile name or empty
+  local prof; prof=$(usable_profiles "$1")
+  if cut -f1 <<<"$prof" | grep -qxF a2dp-sink; then echo a2dp-sink; return; fi
+  grep -E '^a2dp-sink' <<<"$prof" | sort -t$'\t' -k2,2nr | head -n1 | cut -f1 || true
+}
+
+status_json() {
+  local card; card=$(pick_card)
+  if [[ -z "$card" ]]; then
+    echo '{"connected":false,"card":"","name":"","mode":"none","hasCall":false,"hasMusic":false}'
+    return
+  fi
+  local active mode
+  active=$(jq -r '.active_profile' <<<"$card")
+  mode=$(mode_of "$active")
+  local hasCall=false hasMusic=false
+  [[ -n "$(pick_call "$card")" ]] && hasCall=true
+  [[ -n "$(pick_music "$card")" ]] && hasMusic=true
+  jq -nc --argjson c "$card" --arg mode "$mode" --argjson hc "$hasCall" --argjson hm "$hasMusic" '
+    {connected:true, card:$c.name,
+     name:($c.properties["device.description"] // $c.name),
+     mode:$mode, hasCall:$hc, hasMusic:$hm}'
+}
+
+# First node name of <kind> (sources|sinks) belonging to the card address.
+node_for() { # <kind> <prefix> <addr>
+  pactl -f json list "$1" | jq -r --arg p "$2.$3" \
+    '[ .[] | select(.name | startswith($p)) ] | .[0].name // empty'
+}
+
+set_defaults() { # <card name> <with-source: 1|0>
+  local addr=${1#bluez_card.} src="" sink="" i
+  if [[ "$2" == 1 ]]; then
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+      src=$(node_for sources bluez_input "$addr")
+      [[ -n "$src" ]] && break
+      sleep 0.2
+    done
+    [[ -n "$src" ]] && pactl set-default-source "$src"
+  fi
+  for i in 1 2 3 4 5; do
+    sink=$(node_for sinks bluez_output "$addr")
+    [[ -n "$sink" ]] && break
+    sleep 0.2
+  done
+  [[ -n "$sink" ]] && pactl set-default-sink "$sink"
+  return 0
+}
+
+notify() {
+  [[ -n "${AUDIO_SWAPPER_NO_NOTIFY:-}" ]] && return 0
+  command -v notify-send >/dev/null 2>&1 || return 0
+  notify-send -a "Audio Swapper" "$1" "$2" >/dev/null 2>&1 || true
+}
+
+switch_to() { # call|music
+  local card; card=$(pick_card)
+  [[ -n "$card" ]] || die "no Bluetooth headset connected"
+  local name profile cname
+  cname=$(jq -r '.name' <<<"$card")
+  name=$(jq -r '.properties["device.description"] // .name' <<<"$card")
+  if [[ "$1" == call ]]; then profile=$(pick_call "$card"); else profile=$(pick_music "$card"); fi
+  [[ -n "$profile" ]] || die "no available $1 profile on $name"
+  pactl set-card-profile "$cname" "$profile"
+  if [[ "$1" == call ]]; then set_defaults "$cname" 1; else set_defaults "$cname" 0; fi
+  if [[ "$1" == call ]]; then notify "$name" "Call mode (mic on)"; else notify "$name" "Music mode"; fi
+  status_json
+}
+
+case "${1:-}" in
+  status) status_json ;;
+  call) switch_to call ;;
+  music) switch_to music ;;
+  toggle)
+    card=$(pick_card)
+    [[ -n "$card" ]] || die "no Bluetooth headset connected"
+    if [[ "$(mode_of "$(jq -r '.active_profile' <<<"$card")")" == call ]]; then switch_to music; else switch_to call; fi ;;
+  *) echo "usage: audio-swapper {status|call|music|toggle}" >&2; exit 2 ;;
+esac

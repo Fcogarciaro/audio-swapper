@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Fake pactl for tests. State lives in $FAKE_DIR (cards.json, sources.json, sinks.json, calls.log).
+set -euo pipefail
+echo "$*" >> "$FAKE_DIR/calls.log"
+case "$*" in
+  "-f json list cards") cat "$FAKE_DIR/cards.json" ;;
+  "-f json list sources") cat "$FAKE_DIR/sources.json" ;;
+  "-f json list sinks") cat "$FAKE_DIR/sinks.json" ;;
+  set-card-profile\ *)
+    card=$2 profile=$3
+    jq --arg c "$card" --arg p "$profile" \
+      'map(if .name == $c then .active_profile = $p else . end)' \
+      "$FAKE_DIR/cards.json" > "$FAKE_DIR/cards.tmp"
+    mv "$FAKE_DIR/cards.tmp" "$FAKE_DIR/cards.json" ;;
+  set-default-source\ *|set-default-sink\ *) ;;
+  *) echo "fake pactl: unsupported: $*" >&2; exit 1 ;;
+esac

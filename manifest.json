@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "fcogarciaro.audio-swapper",
+  "name": "Audio Swapper",
+  "version": "0.1.0",
+  "author": "Fcogarciaro",
+  "license": "MIT",
+  "description": "Toggle a Bluetooth headset between music (A2DP) and call (HFP, mic on) mode from the Omarchy bar.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Audio Swapper",
+    "description": "One-click switch between A2DP music and HFP call mode for a Bluetooth headset.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "schema": []
+  }
+}

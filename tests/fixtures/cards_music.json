@@ -1,0 +1,10 @@
+[
+{"index":1,"name":"alsa_card.pci-0000_00_1f.3","properties":{"device.description":"Built-in Audio"},"active_profile":"off","profiles":{"off":{"priority":0,"available":true}}},
+{"index":9,"name":"bluez_card.AA_BB_CC_DD_EE_FF","properties":{"device.description":"realme Buds Air8","device.name":"bluez_card.AA_BB_CC_DD_EE_FF"},"active_profile":"a2dp-sink","profiles":{
+ "off":{"priority":0,"available":true},
+ "a2dp-sink":{"priority":40,"available":true},
+ "a2dp-sink-sbc":{"priority":18,"available":true},
+ "headset-head-unit":{"priority":20,"available":true},
+ "headset-head-unit-cvsd":{"priority":19,"available":true},
+ "headset-head-unit-msbc":{"priority":30,"available":true}}}
+]
