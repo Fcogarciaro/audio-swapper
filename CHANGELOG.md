@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Call mode is pinned: WirePlumber's Bluetooth autoswitch is disabled at runtime while in call mode and restored on music. `status` reports `pinned`; the panel says call mode stays on.
 - Popup panel opened by left click: hero, Music/Call mode cards, default microphone row, inline error, and a Bluetooth hint when no headset is connected.
 - `audio-swapper status` now reports `defaultSource` and `defaultSink` descriptions.
 - IPC `open` and `close`.

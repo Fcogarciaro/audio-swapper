@@ -53,13 +53,14 @@ default_desc() { # <sources|sinks> <get-default-source|get-default-sink>
 }
 
 status_json() {
-  local dsrc dsink
+  local dsrc dsink pinned=false
+  is_pinned && pinned=true
   dsrc=$(default_desc sources get-default-source)
   dsink=$(default_desc sinks get-default-sink)
   local card; card=$(pick_card)
   if [[ -z "$card" ]]; then
-    jq -nc --arg ds "$dsrc" --arg dk "$dsink" '{connected:false, card:"", name:"", mode:"none",
-      hasCall:false, hasMusic:false, defaultSource:$ds, defaultSink:$dk}'
+    jq -nc --arg ds "$dsrc" --arg dk "$dsink" --arg p "$pinned" '{connected:false, card:"", name:"", mode:"none",
+      hasCall:false, hasMusic:false, defaultSource:$ds, defaultSink:$dk, pinned:($p == "true")}'
     return
   fi
   local active mode
@@ -69,10 +70,10 @@ status_json() {
   [[ -n "$(pick_call "$card")" ]] && hasCall=true
   [[ -n "$(pick_music "$card")" ]] && hasMusic=true
   jq -nc --argjson c "$card" --arg mode "$mode" --argjson hc "$hasCall" --argjson hm "$hasMusic" \
-    --arg ds "$dsrc" --arg dk "$dsink" '
+    --arg ds "$dsrc" --arg dk "$dsink" --arg p "$pinned" '
     {connected:true, card:$c.name,
      name:($c.properties["device.description"] // $c.name),
-     mode:$mode, hasCall:$hc, hasMusic:$hm, defaultSource:$ds, defaultSink:$dk}'
+     mode:$mode, hasCall:$hc, hasMusic:$hm, defaultSource:$ds, defaultSink:$dk, pinned:($p == "true")}'
 }
 
 # First node name of <kind> (sources|sinks) belonging to the card address.
@@ -100,6 +101,49 @@ set_defaults() { # <card name> <with-source: 1|0>
   return 0
 }
 
+# --- WirePlumber autoswitch pinning -------------------------------------
+# WirePlumber's autoswitch-bluetooth-profile script restores A2DP a couple of
+# seconds after the last capture stream closes. While call mode is active we
+# turn that setting off at runtime (never --save) and restore it on music.
+AUTOSWITCH_KEY=bluetooth.autoswitch-to-headset-profile
+state_file() { echo "${AUDIO_SWAPPER_STATE_DIR:-${XDG_RUNTIME_DIR:-/tmp}/audio-swapper}/autoswitch"; }
+wp() { command "${AUDIO_SWAPPER_WPCTL:-wpctl}" "$@"; }
+is_pinned() { [[ -s "$(state_file)" ]]; }
+
+pin_call() {
+  local f; f=$(state_file)
+  if ! is_pinned; then
+    local out val
+    if ! out=$(wp settings "$AUTOSWITCH_KEY" 2>/dev/null); then
+      echo "audio-swapper: warning: wpctl unavailable; call mode may revert when the mic closes" >&2
+      return 0
+    fi
+    val=$(sed -n 's/^[[:space:]]*Value:[[:space:]]*\(true\|false\).*/\1/p' <<<"$out" | head -n1)
+    if [[ -z "$val" ]]; then
+      echo "audio-swapper: warning: could not read $AUTOSWITCH_KEY" >&2
+      return 0
+    fi
+    mkdir -p "$(dirname "$f")"
+    echo "$val" > "$f"
+  fi
+  if ! wp settings "$AUTOSWITCH_KEY" false >/dev/null 2>&1; then
+    echo "audio-swapper: warning: could not disable WirePlumber autoswitch" >&2
+    rm -f "$f"
+  fi
+  return 0
+}
+
+unpin_music() {
+  is_pinned || return 0
+  local f val; f=$(state_file); val=$(head -n1 "$f")
+  if [[ "$val" == true || "$val" == false ]]; then
+    wp settings "$AUTOSWITCH_KEY" "$val" >/dev/null 2>&1 \
+      || echo "audio-swapper: warning: could not restore WirePlumber autoswitch" >&2
+  fi
+  rm -f "$f"
+  return 0
+}
+
 notify() {
   [[ -n "${AUDIO_SWAPPER_NO_NOTIFY:-}" ]] && return 0
   command -v notify-send >/dev/null 2>&1 || return 0
@@ -114,7 +158,9 @@ switch_to() { # call|music
   name=$(jq -r '.properties["device.description"] // .name' <<<"$card")
   if [[ "$1" == call ]]; then profile=$(pick_call "$card"); else profile=$(pick_music "$card"); fi
   [[ -n "$profile" ]] || die "no available $1 profile on $name"
+  [[ "$1" == call ]] && pin_call
   pactl set-card-profile "$cname" "$profile"
+  [[ "$1" == music ]] && unpin_music
   if [[ "$1" == call ]]; then set_defaults "$cname" 1; else set_defaults "$cname" 0; fi
   if [[ "$1" == call ]]; then notify "$name" "Call mode (mic on)"; else notify "$name" "Music mode"; fi
   status_json

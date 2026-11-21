@@ -46,6 +46,10 @@ The widget also answers IPC: `qs ipc call fcogarciaro.audio-swapper toggle` (als
 
 Profile choice: call prefers `headset-head-unit-msbc`, then `headset-head-unit`, then any head-unit/HFP/HSP profile. Music prefers `a2dp-sink`, else the `a2dp-sink*` profile with the highest priority. Unavailable profiles are skipped.
 
+## Why call mode stays put
+
+WirePlumber's `autoswitch-bluetooth-profile` script switches a headset back to A2DP about two seconds after the last capture stream closes. A dictation app that closes its mic between sessions would therefore drop you out of call mode. While call mode is active, `audio-swapper call` saves the current value of `bluetooth.autoswitch-to-headset-profile` and sets it to `false` with `wpctl settings` (never `--save`). `audio-swapper music` restores the saved value. The setting is runtime-only: a reboot or a WirePlumber restart resets it. The saved value lives in `$XDG_RUNTIME_DIR/audio-swapper/autoswitch`. If `wpctl` is missing or fails, the switch still works and a warning is printed.
+
 ## Tests
 
 ```bash

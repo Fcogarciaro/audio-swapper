@@ -16,3 +16,4 @@ bash tests/run.sh; bash -n audio-swapper; shellcheck audio-swapper; qmllint -I $
 ## Evidence
 - 10ab14a base widget: tests/run.sh 20/20, qmltestrunner 8/8
 - T4 panel: tests/run.sh 25/25, qmltestrunner 16/16, live-rendered in omarchy-shell (no headset connected; toggle on real headset not yet exercised)
+- [x] T5 Pin call mode against WirePlumber autoswitch (runtime wpctl setting) — delegated; tests 43/43, qml 18/18

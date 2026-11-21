@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Fake wpctl for tests: keeps the setting in $FAKE_DIR/wp_setting, logs sets to wpctl.log.
+set -euo pipefail
+[[ "${1:-}" == settings ]] || { echo "fake wpctl: unsupported: $*" >&2; exit 1; }
+if [[ $# -eq 2 ]]; then
+  echo "Value: $(cat "$FAKE_DIR/wp_setting")"
+elif [[ $# -eq 3 ]]; then
+  echo "$*" >> "$FAKE_DIR/wpctl.log"
+  echo "$3" > "$FAKE_DIR/wp_setting"
+else
+  exit 1
+fi

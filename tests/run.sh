@@ -17,6 +17,10 @@ setup() { # <cards fixture>
   echo alsa_output.pci > "$FAKE_DIR/default_sink"
   export PATH="$FIX:$PATH"
   export AUDIO_SWAPPER_NO_NOTIFY=1
+  export AUDIO_SWAPPER_STATE_DIR="$FAKE_DIR/state"
+  unset AUDIO_SWAPPER_WPCTL
+  echo true > "$FAKE_DIR/wp_setting"
+  : > "$FAKE_DIR/wpctl.log"
 }
 
 check() { # <desc> <expected> <actual>
@@ -86,6 +90,62 @@ t_unavailable_skipped() {
   check "msbc not selected" no "$(log_has "set-card-profile $CARD headset-head-unit-msbc")"
 }
 
-for t in t_default_devices t_no_headset t_status_music t_status_call t_toggle_to_call t_toggle_to_music t_a2dp_fallback t_unavailable_skipped; do "$t"; done
+KEY=bluetooth.autoswitch-to-headset-profile
+wp_value() { cat "$FAKE_DIR/wp_setting"; }
+stored() { cat "$AUDIO_SWAPPER_STATE_DIR/autoswitch" 2>/dev/null || echo none; }
+
+t_pin_on_call() {
+  setup cards_music.json
+  out=$("$BIN" call)
+  check "pin: original true stored" true "$(stored)"
+  check "pin: setting forced false" false "$(wp_value)"
+  check "pin: status pinned" true "$(field "$out" pinned)"
+  check "pin: never --save" no "$([[ "$(<"$FAKE_DIR/wpctl.log")" == *--save* ]] && echo yes || echo no)"
+}
+t_pin_not_overwritten() {
+  setup cards_music.json
+  "$BIN" call >/dev/null
+  "$BIN" call >/dev/null
+  check "pin: second call keeps original" true "$(stored)"
+}
+t_unpin_on_music() {
+  setup cards_call.json
+  mkdir -p "$AUDIO_SWAPPER_STATE_DIR"; echo true > "$AUDIO_SWAPPER_STATE_DIR/autoswitch"; echo false > "$FAKE_DIR/wp_setting"
+  out=$("$BIN" music)
+  check "unpin: setting restored" true "$(wp_value)"
+  check "unpin: file removed" none "$(stored)"
+  check "unpin: status not pinned" false "$(field "$out" pinned)"
+}
+t_music_nothing_stored() {
+  setup cards_call.json
+  "$BIN" music >/dev/null
+  check "music without stored: no wpctl set" 0 "$(wc -l < "$FAKE_DIR/wpctl.log" | tr -d ' ')"
+}
+t_original_false_restored() {
+  setup cards_music.json
+  echo false > "$FAKE_DIR/wp_setting"
+  "$BIN" call >/dev/null
+  check "false original stored" false "$(stored)"
+  "$BIN" music >/dev/null
+  check "false original restored" false "$(wp_value)"
+  check "false original: file removed" none "$(stored)"
+}
+t_wpctl_missing() {
+  setup cards_music.json
+  export AUDIO_SWAPPER_WPCTL=no-such-wpctl-binary
+  out=$("$BIN" call 2>"$FAKE_DIR/err"); rc=$?
+  check "no wpctl: call succeeds" 0 "$rc"
+  check "no wpctl: still call mode" call "$(field "$out" mode)"
+  check "no wpctl: warns" yes "$([[ -s $FAKE_DIR/err ]] && echo yes || echo no)"
+  check "no wpctl: not pinned" false "$(field "$out" pinned)"
+}
+t_status_pinned() {
+  setup cards_call.json
+  check "status: not pinned by default" false "$(field "$("$BIN" status)" pinned)"
+  mkdir -p "$AUDIO_SWAPPER_STATE_DIR"; echo true > "$AUDIO_SWAPPER_STATE_DIR/autoswitch"
+  check "status: pinned with stored value" true "$(field "$("$BIN" status)" pinned)"
+}
+
+for t in t_pin_on_call t_pin_not_overwritten t_unpin_on_music t_music_nothing_stored t_original_false_restored t_wpctl_missing t_status_pinned t_default_devices t_no_headset t_status_music t_status_call t_toggle_to_call t_toggle_to_music t_a2dp_fallback t_unavailable_skipped; do "$t"; done
 echo "passed=$pass failed=$fail"
 [[ $fail -eq 0 ]]

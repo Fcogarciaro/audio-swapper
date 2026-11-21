@@ -1,6 +1,6 @@
 .pragma library
 
-var NONE = { connected: false, card: "", name: "", mode: "none", hasCall: false, hasMusic: false, defaultSource: "", defaultSink: "" }
+var NONE = { connected: false, card: "", name: "", mode: "none", hasCall: false, hasMusic: false, defaultSource: "", defaultSink: "", pinned: false }
 
 // Parse the one-line JSON printed by `audio-swapper status`. Never throws.
 function parseStatus(text) {
@@ -18,7 +18,8 @@ function parseStatus(text) {
     hasCall: raw.hasCall === true,
     hasMusic: raw.hasMusic === true,
     defaultSource: String(raw.defaultSource || ""),
-    defaultSink: String(raw.defaultSink || "")
+    defaultSink: String(raw.defaultSink || ""),
+    pinned: connected && raw.pinned === true
   }
 }
 
@@ -41,7 +42,9 @@ function heroTitle(status) {
 
 function heroLine(status) {
   if (!status.connected) return "No headset connected"
-  if (status.mode === "call") return "Mic on · Hands-free"
+  if (status.mode === "call") {
+    return status.pinned ? "Mic on · Hands-free · stays on until you switch" : "Mic on · Hands-free"
+  }
   if (status.mode === "music") return "Hi-fi audio · Mic off"
   return "Choose a mode"
 }

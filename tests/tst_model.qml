@@ -117,4 +117,19 @@ TestCase {
     compare(Model.errorMessage("", 1), "Could not switch audio mode.")
     compare(Model.errorMessage("ignored", 0), "")
   }
+
+  function test_parse_pinned() {
+    compare(Model.parseStatus('{"connected":true,"mode":"call","pinned":true}').pinned, true)
+    compare(Model.parseStatus('{"connected":true,"mode":"call"}').pinned, false)
+    compare(Model.parseStatus("").pinned, false)
+  }
+
+  function test_hero_line_pinned() {
+    var pinnedCall = Model.parseStatus('{"connected":true,"name":"Buds","mode":"call","pinned":true}')
+    compare(Model.heroLine(pinnedCall), "Mic on · Hands-free · stays on until you switch")
+    var unpinnedCall = Model.parseStatus('{"connected":true,"name":"Buds","mode":"call","pinned":false}')
+    compare(Model.heroLine(unpinnedCall), "Mic on · Hands-free")
+    var staleMusic = Model.parseStatus('{"connected":true,"name":"Buds","mode":"music","pinned":true}')
+    compare(Model.heroLine(staleMusic), "Hi-fi audio · Mic off")
+  }
 }
